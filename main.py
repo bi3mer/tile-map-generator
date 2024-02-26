@@ -1,7 +1,10 @@
 import os
 import argparse
 
-IGNORE_TILE = '.'
+from bit_operations import get_bit_mask_ignore_corners
+
+IGNORE_TILE = "."
+
 
 def read_file(file_path):
     map = []
@@ -15,26 +18,45 @@ def read_file(file_path):
     return map, solids
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser("Tile Map Generator")
-    parser.add_argument('--example', help='Example level with tiles correctly places.', type=str, required=True) 
-    parser.add_argument('--convert', help='Convert a level given an example level', type=str, required=False)
-    parser.add_argument('--output-map', help="Output the map generated from the example to a json file", required=False)
-    parser.add_argument('--input-type', help='Whether example level is ascii or image based', choices=['ascii', 'img'], required=True)
-    parser.add_argument('--ignore-corners', help='Bitmask operations can ignore corners if two neighboring cardinal directions are also empty.', type=bool, required=False)
+    parser.add_argument(
+        "--example",
+        help="Example level with tiles correctly places.",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--convert",
+        help="Convert a level given an example level",
+        type=str,
+        required=False,
+    )
+    parser.add_argument(
+        "--output-map",
+        help="Output the map generated from the example to a json file",
+        required=False,
+    )
+    parser.add_argument(
+        "--input-type",
+        help="Whether example level is ascii or image based",
+        choices=["ascii", "img"],
+        required=True,
+    )
+    parser.add_argument(
+        "--ignore-corners",
+        help="Bitmask operations can ignore corners if two neighboring cardinal directions are also empty.",
+        type=bool,
+        required=False,
+    )
     args = parser.parse_args()
 
     # TODO: handle tile size if image in arg parse
 
-    example_level = 'example/ascii/example-lvl.txt'
-    convert_level = 'example/ascii/input.txt'
+    example_level = args.example
 
     if not os.path.exists(example_level):
-        print(f'Could not read the example level: {example_level}')
-
-    if not os.path.exists(convert_level):
-        print(f'Could not read level to convert: {convert_level}')
-
+        print(f"Could not read the example level: {example_level}")
 
     map, solids = read_file(example_level)
     bitmaskToTile = {}
@@ -42,16 +64,22 @@ if __name__ == '__main__':
     for y in range(len(map)):
         for x in range(len(map[0])):
             if not solids[y][x]:
-                continue # we only care about relevant tiles
+                continue  # we only care about relevant tiles
 
             bitmask = get_bit_mask_ignore_corners(solids, x, y)
             char = map[y][x]
 
             if bitmask in bitmaskToTile and char != bitmaskToTile[bitmask]:
-                print(f'Error! Matching bitmasks found for {char} and {bitmaskToTile[char]}')
+                print(
+                    f"Error! Matching bitmasks found for {char} and {bitmaskToTile[char]}"
+                )
                 exit(-1)
             else:
                 bitmaskToTile[bitmask] = char
+
+    convert_level = args.convert
+    if not os.path.exists(convert_level):
+        print(f"Could not read level to convert: {convert_level}")
 
     convert_map, convert_solids = read_file(convert_level)
 
@@ -63,5 +91,4 @@ if __name__ == '__main__':
             bitmask = get_bit_mask_ignore_corners(convert_solids, x, y)
             convert_map[y][x] = bitmaskToTile[bitmask]
 
-
-    print('\n'.join(''.join(line) for line in convert_map))
+    print("\n".join("".join(line) for line in convert_map))
