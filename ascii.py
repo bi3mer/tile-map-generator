@@ -1,7 +1,7 @@
 import os
 import argparse
 
-from bit_operations import get_bit_mask_ignore_corners
+from bit_operations import get_bit_mask, get_bit_mask_ignore_corners
 
 IGNORE_TILE = "."
 
@@ -19,7 +19,7 @@ def read_file(file_path):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser("Tile Map Generator")
+    parser = argparse.ArgumentParser("ASCII Tile Map Decorator")
     parser.add_argument(
         "--example",
         help="Example level with tiles correctly places.",
@@ -38,15 +38,9 @@ if __name__ == "__main__":
         required=False,
     )
     parser.add_argument(
-        "--input-type",
-        help="Whether example level is ascii or image based",
-        choices=["ascii", "img"],
-        required=True,
-    )
-    parser.add_argument(
         "--ignore-corners",
         help="Bitmask operations can ignore corners if two neighboring cardinal directions are also empty.",
-        type=bool,
+        action="store_true",
         required=False,
     )
     args = parser.parse_args()
@@ -58,6 +52,13 @@ if __name__ == "__main__":
     if not os.path.exists(example_level):
         print(f"Could not read the example level: {example_level}")
 
+    if args.ignore_corners:
+        print(1)
+        bitmask_finder = get_bit_mask_ignore_corners
+    else:
+        bitmask_finder = get_bit_mask
+        print(2)
+
     map, solids = read_file(example_level)
     bitmaskToTile = {}
 
@@ -66,7 +67,7 @@ if __name__ == "__main__":
             if not solids[y][x]:
                 continue  # we only care about relevant tiles
 
-            bitmask = get_bit_mask_ignore_corners(solids, x, y)
+            bitmask = bitmask_finder(solids, x, y)
             char = map[y][x]
 
             if bitmask in bitmaskToTile and char != bitmaskToTile[bitmask]:
@@ -88,7 +89,8 @@ if __name__ == "__main__":
             if not convert_solids[y][x]:
                 continue
 
-            bitmask = get_bit_mask_ignore_corners(convert_solids, x, y)
-            convert_map[y][x] = bitmaskToTile[bitmask]
+            bitmask = bitmask_finder(convert_solids, x, y)
+            if bitmask in bitmaskToTile:
+                convert_map[y][x] = bitmaskToTile[bitmask]
 
     print("\n".join("".join(line) for line in convert_map))
