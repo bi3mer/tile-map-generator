@@ -1,12 +1,13 @@
-import os
 import argparse
+import json
+import os
 
 from bit_operations import get_bit_mask, get_bit_mask_ignore_corners
 
 IGNORE_TILE = "."
 
 
-def parser():
+def get_cmd_args():
     parser = argparse.ArgumentParser("ASCII Tile Map Decorator")
     parser.add_argument(
         "--example",
@@ -22,9 +23,11 @@ def parser():
         default=None,
     )
     parser.add_argument(
-        "--output-map",
-        help="Output the map generated from the example to a json file",
+        "--bit-dict",
+        help="Output the bitmask dictionary to json dictionary",
         required=False,
+        type=str,
+        default=None,
     )
     parser.add_argument(
         "--ignore-corners",
@@ -94,8 +97,13 @@ def convert_level(level, bitmask_finder, bitmaskToTile):
     print("\n".join("".join(line) for line in convert_map))
 
 
+def output_bitmask_dictionary(output_file, bitmaskToTile):
+    with open(output_file, "w") as f:
+        json.dump(bitmaskToTile, f, indent=2)
+
+
 def main():
-    args = parser()
+    args = get_cmd_args()
 
     if args.ignore_corners:
         bitmask_finder = get_bit_mask_ignore_corners
@@ -106,6 +114,9 @@ def main():
 
     if args.convert:
         convert_level(args.convert, bitmask_finder, bitmaskToTile)
+
+    if args.bit_dict:
+        output_bitmask_dictionary(args.bit_dict, bitmaskToTile)
 
 
 if __name__ == "__main__":

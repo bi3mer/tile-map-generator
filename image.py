@@ -6,6 +6,10 @@ from bit_operations import get_bit_mask, get_bit_mask_ignore_corners
 IGNORE_TILE = "."
 
 
+def get_cmd_args():
+    pass
+
+
 def read_file(file_path):
     map = []
     solids = []
@@ -16,6 +20,14 @@ def read_file(file_path):
             solids.append([c != IGNORE_TILE for c in line.strip()])
 
     return map, solids
+
+
+def read_example_level(path, bitmask_finder):
+    pass
+
+
+def convert_level(path, bitmask_finder, bitmaskToTile):
+    pass
 
 
 if __name__ == "__main__":
