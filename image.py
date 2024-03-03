@@ -1,37 +1,27 @@
-import os
 import argparse
+import json
+import os
+
+from PIL import Image, ImageChops
 
 from bit_operations import get_bit_mask, get_bit_mask_ignore_corners
 
-IGNORE_TILE = "."
+TO_CONVERT_TILE = "X"
 
 
 def get_cmd_args():
-    pass
-
-
-def read_file(file_path):
-    map = []
-    solids = []
-
-    with open(file_path) as f:
-        for line in f.readlines():
-            map.append(list(line.strip()))
-            solids.append([c != IGNORE_TILE for c in line.strip()])
-
-    return map, solids
-
-
-def read_example_level(path, bitmask_finder):
-    pass
-
-
-def convert_level(path, bitmask_finder, bitmaskToTile):
-    pass
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser("ASCII Tile Map Decorator")
+    parser = argparse.ArgumentParser("Image Tile Map Decorator")
+    parser.add_argument(
+        "--tile-size",
+        help="Tile size (e.g. 16x16 -> 16)",
+        type=int,
+    )
+    parser.add_argument(
+        "--tileset",
+        help="Tile set that contains all tiles that are relevant.",
+        type=str,
+        required=True,
+    )
     parser.add_argument(
         "--example",
         help="Example level with tiles correctly places.",
@@ -43,11 +33,14 @@ if __name__ == "__main__":
         help="Convert a level given an example level",
         type=str,
         required=False,
+        default=None,
     )
     parser.add_argument(
-        "--output-map",
-        help="Output the map generated from the example to a json file",
+        "--bit-dict",
+        help="Output the bitmask dictionary to json dictionary",
         required=False,
+        type=str,
+        default=None,
     )
     parser.add_argument(
         "--ignore-corners",
@@ -55,21 +48,106 @@ if __name__ == "__main__":
         action="store_true",
         required=False,
     )
-    args = parser.parse_args()
 
-    # TODO: handle tile size if image in arg parse
+    return parser.parse_args()
 
-    example_level = args.example
 
-    if not os.path.exists(example_level):
-        print(f"Could not read the example level: {example_level}")
+def get_image(file_path):
+    if not os.path.exists:
+        print(f"Image not found: {file_path}")
+        exit(-1)
 
+    return Image.open(file_path)
+
+
+def image_to_tilset(image, tilesize):
+    # Get image dimensions and make sure that the tilesize correctly matches
+    # the tileset
+    W, H = image.size
+
+    assert W % tilesize == 0
+    assert H % tilesize == 0
+
+    TW = W // tilesize
+    TH = H // tilesize
+
+    # Read image row by row and put the results into a dictionary
+    tileset = {}  # { (x, y): CROPPED_IMAGE }
+    for y in range(TH):
+        START_Y = y * tilesize
+        END_Y = START_Y + tilesize
+        for x in range(TW):
+            START_X = x * tilesize
+            END_X = START_X + tilesize
+
+            cropped_image = image.crop((START_X, START_Y, END_X, END_Y))
+            tileset[(x, y)] = cropped_image
+
+    return tileset
+
+
+def tileset_contains(tileset, img):
+    for coord, i in tileset.items():
+        diff = ImageChops.difference(i, img)
+        if not diff.getbbox():
+            return coord  # Image found
+
+    # Image not found
+    return None
+
+
+def image_to_map(image, tileset, tilesize):
+    to_convert = []
+
+    print(to_convert)
+
+
+def main():
+    args = get_cmd_args()
+
+    # Validate tile size
+    tilesize = args.tile_size
+    if tilesize <= 0:
+        print(f'Error: arg "--tile-size" value too small ({tilesize} <= 0')
+        exit(-1)
+
+    # Set correct bitmask
     if args.ignore_corners:
-        print(1)
         bitmask_finder = get_bit_mask_ignore_corners
     else:
         bitmask_finder = get_bit_mask
-        print(2)
+
+    # get the tileset
+    tileset = image_to_tilset(get_image(args.tileset), tilesize)
+    # bitmaskToTile = read_example_level(args.example, bitmask_finder)
+
+    # if args.convert:
+    #     convert_level(args.convert, bitmask_finder, bitmaskToTile)
+    #
+    # if args.bit_dict:
+    #     output_bitmask_dictionary(args.bit_dict, bitmaskToTile)
+
+
+if __name__ == "__main__":
+    main()
+
+
+def read_file_for_conversion(file_path):
+    map = []
+    to_convert = []
+
+    with open(file_path) as f:
+        for line in f.readlines():
+            map.append(list(line.strip()))
+            to_convert.append([c == TO_CONVERT_TILE for c in line.strip()])
+
+    return map, to_convert
+
+
+def read_example_level(example_level, bitmask_finder):
+    if not os.path.exists(example_level):
+        print(f"Could not read the example level: {example_level}")
+        exit(-1)
 
     map, solids = read_file(example_level)
     bitmaskToTile = {}
@@ -90,11 +168,15 @@ if __name__ == "__main__":
             else:
                 bitmaskToTile[bitmask] = char
 
-    convert_level = args.convert
-    if not os.path.exists(convert_level):
-        print(f"Could not read level to convert: {convert_level}")
+    return bitmaskToTile
 
-    convert_map, convert_solids = read_file(convert_level)
+
+def convert_level(level, bitmask_finder, bitmaskToTile):
+    if not os.path.exists(level):
+        print(f"Could not read level to convert: {level}")
+        exit(-1)
+
+    convert_map, convert_solids = read_file(level)
 
     for y in range(len(convert_map)):
         for x in range(len(convert_map[0])):
@@ -106,3 +188,8 @@ if __name__ == "__main__":
                 convert_map[y][x] = bitmaskToTile[bitmask]
 
     print("\n".join("".join(line) for line in convert_map))
+
+
+def output_bitmask_dictionary(output_file, bitmaskToTile):
+    with open(output_file, "w") as f:
+        json.dump(bitmaskToTile, f, indent=2)
