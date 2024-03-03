@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+from typing import List, Tuple
 
 from PIL import Image, ImageChops
 
@@ -57,10 +58,11 @@ def get_image(file_path):
         print(f"Image not found: {file_path}")
         exit(-1)
 
-    return Image.open(file_path)
+    return Image.open(file_path).convert("RGBA")
 
 
-def image_to_tilset(image, tilesize):
+def image_to_matrix(image, tilesize):
+    matrix = []
     # Get image dimensions and make sure that the tilesize correctly matches
     # the tileset
     W, H = image.size
@@ -71,17 +73,29 @@ def image_to_tilset(image, tilesize):
     TW = W // tilesize
     TH = H // tilesize
 
-    # Read image row by row and put the results into a dictionary
-    tileset = {}  # { (x, y): CROPPED_IMAGE }
+    # Read image row by row and put the results into a matrix
     for y in range(TH):
+        matrix.append([])
         START_Y = y * tilesize
         END_Y = START_Y + tilesize
+
         for x in range(TW):
             START_X = x * tilesize
             END_X = START_X + tilesize
 
-            cropped_image = image.crop((START_X, START_Y, END_X, END_Y))
-            tileset[(x, y)] = cropped_image
+            matrix[-1].append(image.crop((START_X, START_Y, END_X, END_Y)))
+
+    return matrix
+
+
+def image_to_tilset(image, tilesize):
+    matrix = image_to_matrix(image, tilesize)
+
+    # Read image row by row and put the results into a dictionary
+    tileset = {}  # { (x, y): CROPPED_IMAGE }
+    for y in range(len(matrix)):
+        for x in range(len(matrix[0])):
+            tileset[(x, y)] = matrix[y][x]
 
     return tileset
 
@@ -96,10 +110,16 @@ def tileset_contains(tileset, img):
     return None
 
 
-def image_to_map(image, tileset, tilesize):
-    to_convert = []
+def image_to_map_and_matrix(image, tileset, tilesize):
+    matrix = image_to_matrix(image, tilesize)
+    map: List[List[Tuple[int, int] | None]] = []
 
-    print(to_convert)
+    for y in range(len(matrix)):
+        map.append([])
+        for x in range(len(matrix[0])):
+            map[-1].append(tileset_contains(tileset, matrix[y][x]))
+
+    return map, matrix
 
 
 def main():
@@ -119,7 +139,12 @@ def main():
 
     # get the tileset
     tileset = image_to_tilset(get_image(args.tileset), tilesize)
-    # bitmaskToTile = read_example_level(args.example, bitmask_finder)
+
+    # convert example image of a map to a matrix of booleans
+    map, matrix = image_to_map_and_matrix(get_image(args.example), tileset, tilesize)
+
+    for row in map:
+        print("".join("," if e == None else "X" for e in row))
 
     # if args.convert:
     #     convert_level(args.convert, bitmask_finder, bitmaskToTile)
