@@ -4,9 +4,14 @@ import os
 from typing import List, Tuple
 
 from PIL import Image, ImageChops
+import numpy as np
 
 from bit_operations import get_bit_mask, get_bit_mask_ignore_corners
-from common_functions import get_bit_mask_lambda
+from common_functions import (
+    bit_mask_to_tile_from_example_ascii,
+    convert_level,
+    get_bit_mask_lambda,
+)
 
 TO_CONVERT_TILE = "X"
 
@@ -78,11 +83,11 @@ def image_to_matrix(image, tilesize):
     for y in range(TH):
         matrix.append([])
         START_Y = y * tilesize
-        END_Y = START_Y + tilesize
+        END_Y = START_Y + tilesize - 1
 
         for x in range(TW):
             START_X = x * tilesize
-            END_X = START_X + tilesize
+            END_X = START_X + tilesize - 1
 
             matrix[-1].append(image.crop((START_X, START_Y, END_X, END_Y)))
 
@@ -102,25 +107,29 @@ def image_to_tilset(image, tilesize):
 
 
 def tileset_contains(tileset, img):
-    for coord, i in tileset.items():
-        diff = ImageChops.difference(i, img)
-        if not diff.getbbox():
+    np_img = np.asarray(img)
+    for coord, tile in tileset.items():
+        # for some reason pyright thinks that this is an error.
+        if np.sum(np_img - np.asarray(tile)) == 0:  # type: ignore
             return coord  # Image found
 
     # Image not found
     return None
 
 
-def image_to_map_and_matrix(image, tileset, tilesize):
+def read_level_from_image(image, tileset, tilesize):
     matrix = image_to_matrix(image, tilesize)
-    map: List[List[Tuple[int, int] | None]] = []
+    coordinates: List[List[Tuple[int, int] | None]] = []
+    mask: List[List[bool]] = []
 
     for y in range(len(matrix)):
-        map.append([])
+        coordinates.append([])
+        mask.append([])
         for x in range(len(matrix[0])):
-            map[-1].append(tileset_contains(tileset, matrix[y][x]))
+            coordinates[-1].append(tileset_contains(tileset, matrix[y][x]))
+            mask[-1].append(coordinates[-1][-1] is not None)  # False if None
 
-    return map, matrix
+    return mask, matrix
 
 
 # This could be a one line...
@@ -144,82 +153,33 @@ def main():
     # Set correct bitmask
     bitmask_finder = get_bit_mask_lambda(args.ignore_corners)
 
-    # get the tileset
+    # get the tileset and use it to load in the example map
     tileset = image_to_tilset(get_image(args.tileset), tilesize)
+    mask, map = read_level_from_image(get_image(args.example), tileset, tilesize)
 
-    # convert example image of a map to a matrix of booleans
-    map, matrix = image_to_map_and_matrix(get_image(args.example), tileset, tilesize)
-    ascii_map = map_to_ascii(map)
+    # use sample to get a bitmask to tile dictinoary
+    # print(map)
+    # print(mask)
+    bitmaskToTile = bit_mask_to_tile_from_example_ascii(map, mask, bitmask_finder)
 
     if args.convert:
-        convert_level(args.convert, bitmask_finder, bitmaskToTile)
+        level = args.convert
+        img = get_image(level)
+        # use convert_level
+        # map_to_convert, mask_for_conversion = image_to_mask_and_matrix(
+        #     img, tileset, tilesize
+        # )
+        # print(mask_for_conversion)
+        # converted_map = convert_level(
+        #     map_to_convert, mask_for_conversion, bitmaskToTile, bitmask_finder
+        # )
+        #
+        # print(converted_map)
 
-    # if args.bit_dict:
-    #     output_bitmask_dictionary(args.bit_dict, bitmaskToTile)
+    if args.bit_dict:
+        with open(args.bit_dict, "w") as f:
+            json.dump(bitmaskToTile, f, indent=2)
 
 
 if __name__ == "__main__":
     main()
-
-
-def read_file_for_conversion(file_path):
-    map = []
-    to_convert = []
-
-    with open(file_path) as f:
-        for line in f.readlines():
-            map.append(list(line.strip()))
-            to_convert.append([c == TO_CONVERT_TILE for c in line.strip()])
-
-    return map, to_convert
-
-
-def read_example_level(example_level, bitmask_finder):
-    if not os.path.exists(example_level):
-        print(f"Could not read the example level: {example_level}")
-        exit(-1)
-
-    map, solids = read_file(example_level)
-    bitmaskToTile = {}
-
-    for y in range(len(map)):
-        for x in range(len(map[0])):
-            if not solids[y][x]:
-                continue  # we only care about relevant tiles
-
-            bitmask = bitmask_finder(solids, x, y)
-            char = map[y][x]
-
-            if bitmask in bitmaskToTile and char != bitmaskToTile[bitmask]:
-                print(
-                    f"Error! Matching bitmasks found for {char} and {bitmaskToTile[char]}"
-                )
-                exit(-1)
-            else:
-                bitmaskToTile[bitmask] = char
-
-    return bitmaskToTile
-
-
-def convert_level(level, bitmask_finder, bitmaskToTile):
-    if not os.path.exists(level):
-        print(f"Could not read level to convert: {level}")
-        exit(-1)
-
-    convert_map, convert_solids = read_file(level)
-
-    for y in range(len(convert_map)):
-        for x in range(len(convert_map[0])):
-            if not convert_solids[y][x]:
-                continue
-
-            bitmask = bitmask_finder(convert_solids, x, y)
-            if bitmask in bitmaskToTile:
-                convert_map[y][x] = bitmaskToTile[bitmask]
-
-    print("\n".join("".join(line) for line in convert_map))
-
-
-def output_bitmask_dictionary(output_file, bitmaskToTile):
-    with open(output_file, "w") as f:
-        json.dump(bitmaskToTile, f, indent=2)
