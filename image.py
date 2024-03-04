@@ -3,14 +3,15 @@ import json
 import os
 from typing import List, Tuple
 
-from PIL import Image, ImageChops
 import numpy as np
+from PIL import Image, ImageChops
 
-from bit_operations import get_bit_mask, get_bit_mask_ignore_corners
+from bit_operations import get_bit_mask, get_bit_mask_ignore_corners, large_bit_mask
 from common_functions import (
     bit_mask_to_tile_from_example_ascii,
     convert_level,
     get_bit_mask_lambda,
+    read_text_level,
 )
 
 TO_CONVERT_TILE = "X"
@@ -48,12 +49,6 @@ def get_cmd_args():
         required=False,
         type=str,
         default=None,
-    )
-    parser.add_argument(
-        "--ignore-corners",
-        help="Bitmask operations can ignore corners if two neighboring cardinal directions are also empty.",
-        action="store_true",
-        required=False,
     )
 
     return parser.parse_args()
@@ -127,18 +122,9 @@ def read_level_from_image(image, tileset, tilesize):
         mask.append([])
         for x in range(len(matrix[0])):
             coordinates[-1].append(tileset_contains(tileset, matrix[y][x]))
-            mask[-1].append(coordinates[-1][-1] is not None)  # False if None
+            mask[-1].append(coordinates[-1][-1] is not None)
 
-    return mask, matrix
-
-
-# This could be a one line...
-def map_to_ascii(map):
-    ascii_map = []
-    for row in map:
-        ascii_map.append("".join("," if e is None else "X" for e in row))
-
-    return ascii_map
+    return mask, matrix, coordinates
 
 
 def main():
@@ -151,30 +137,28 @@ def main():
         exit(-1)
 
     # Set correct bitmask
-    bitmask_finder = get_bit_mask_lambda(args.ignore_corners)
+    # bitmask_finder = get_bit_mask_lambda(args.ignore_corners)
+    bitmask_finder = large_bit_mask
 
     # get the tileset and use it to load in the example map
     tileset = image_to_tilset(get_image(args.tileset), tilesize)
-    mask, map = read_level_from_image(get_image(args.example), tileset, tilesize)
+    mask, _map, coordinates = read_level_from_image(
+        get_image(args.example), tileset, tilesize
+    )
 
     # use sample to get a bitmask to tile dictinoary
-    # print(map)
-    # print(mask)
-    bitmaskToTile = bit_mask_to_tile_from_example_ascii(map, mask, bitmask_finder)
+    bitmaskToTile = bit_mask_to_tile_from_example_ascii(
+        coordinates, mask, bitmask_finder
+    )
 
     if args.convert:
         level = args.convert
-        img = get_image(level)
-        # use convert_level
-        # map_to_convert, mask_for_conversion = image_to_mask_and_matrix(
-        #     img, tileset, tilesize
-        # )
-        # print(mask_for_conversion)
-        # converted_map = convert_level(
-        #     map_to_convert, mask_for_conversion, bitmaskToTile, bitmask_finder
-        # )
-        #
-        # print(converted_map)
+
+        c_map, c_mask = read_text_level(level)
+
+        converted_map = convert_level(c_map, c_mask, bitmaskToTile, bitmask_finder)
+        for r in converted_map:
+            print(r)
 
     if args.bit_dict:
         with open(args.bit_dict, "w") as f:

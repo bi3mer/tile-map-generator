@@ -1,14 +1,14 @@
 import argparse
 import json
 import os
+from bit_operations import large_bit_mask
 
 from common_functions import (
     bit_mask_to_tile_from_example_ascii,
     convert_level,
     get_bit_mask_lambda,
+    read_text_level,
 )
-
-IGNORE_TILE = "."
 
 
 def get_cmd_args():
@@ -43,24 +43,8 @@ def get_cmd_args():
     return parser.parse_args()
 
 
-def read_file(file_path):
-    if not os.path.exists(file_path):
-        print(f"Could not read the example level: {file_path}")
-        exit(-1)
-
-    map = []
-    solids = []
-
-    with open(file_path) as f:
-        for line in f.readlines():
-            map.append(list(line.strip()))
-            solids.append([c != IGNORE_TILE for c in line.strip()])
-
-    return map, solids
-
-
 def read_example_level(example_level, bitmask_finder):
-    map, solids = read_file(example_level)
+    map, solids = read_text_level(example_level)
     return bit_mask_to_tile_from_example_ascii(map, solids, bitmask_finder)
 
 
@@ -72,9 +56,13 @@ def main():
 
     if args.convert:
         level = args.convert
-        map_to_convert, mask = read_file(level)
+        map_to_convert, mask = read_text_level(level)
         converted_map = convert_level(
-            map_to_convert, mask, bitmaskToTile, bitmask_finder
+            map_to_convert,
+            mask,
+            bitmaskToTile,
+            bitmask_finder,
+            fuzzy_match_on_fail=True,
         )
 
         print("\n".join("".join(line) for line in converted_map))
