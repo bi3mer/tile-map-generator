@@ -6,6 +6,7 @@ from typing import List, Tuple
 from PIL import Image, ImageChops
 
 from bit_operations import get_bit_mask, get_bit_mask_ignore_corners
+from common_functions import get_bit_mask_lambda
 
 TO_CONVERT_TILE = "X"
 
@@ -122,6 +123,15 @@ def image_to_map_and_matrix(image, tileset, tilesize):
     return map, matrix
 
 
+# This could be a one line...
+def map_to_ascii(map):
+    ascii_map = []
+    for row in map:
+        ascii_map.append("".join("," if e is None else "X" for e in row))
+
+    return ascii_map
+
+
 def main():
     args = get_cmd_args()
 
@@ -132,23 +142,18 @@ def main():
         exit(-1)
 
     # Set correct bitmask
-    if args.ignore_corners:
-        bitmask_finder = get_bit_mask_ignore_corners
-    else:
-        bitmask_finder = get_bit_mask
+    bitmask_finder = get_bit_mask_lambda(args.ignore_corners)
 
     # get the tileset
     tileset = image_to_tilset(get_image(args.tileset), tilesize)
 
     # convert example image of a map to a matrix of booleans
     map, matrix = image_to_map_and_matrix(get_image(args.example), tileset, tilesize)
+    ascii_map = map_to_ascii(map)
 
-    for row in map:
-        print("".join("," if e == None else "X" for e in row))
+    if args.convert:
+        convert_level(args.convert, bitmask_finder, bitmaskToTile)
 
-    # if args.convert:
-    #     convert_level(args.convert, bitmask_finder, bitmaskToTile)
-    #
     # if args.bit_dict:
     #     output_bitmask_dictionary(args.bit_dict, bitmaskToTile)
 
